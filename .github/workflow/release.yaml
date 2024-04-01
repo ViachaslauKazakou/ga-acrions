@@ -1,0 +1,118 @@
+name: Create releases branches
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BUCKET_NAME: solid-scraper
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: configure aws cli
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+#      - name: set up node.js
+#        uses: actions/setup-node@v2
+#        with:
+#          node-version: 19
+#      - name: build site
+#        run: |
+#          cd project
+#          npm ci
+#          npm run build
+#      - name: deploy files to bucket
+#        run: |
+#          ls -la
+#          cd project
+#          aws s3 cp * s3://${{ env.BUCKET_NAME }}/project --recursive --acl public-read
+      - name: Zip bundle
+        run: |
+          cd app
+          zip -r ../${{ github.sha }}.zip .
+      - name: Archive artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: zipped-bundle
+          path: ${{ github.sha }}.zip
+
+
+  publish:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    needs: build
+    env:
+      BUCKET_NAME: fastapi-code-bucket-0904
+    steps:
+      - name: Create release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.run_number }}-release
+          release_name: Release 0.0.0${{ github.run_number }}
+          body: New release for ${{ github.sha }}. Release notes can be found in the docs.
+          draft: false
+          prerelease: false
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: zipped-bundle
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ./${{ github.sha }}.zip
+          asset_name: source_code.zip
+          asset_content_type: application/zip
+#      - name: Upload source code to bucket
+#        run: |
+#          ls -la
+
+  deploy-to-s3:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    needs: publish
+    env:
+      BUCKET_NAME: fastapi-code-bucket-0904
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: configure aws cli
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Upload source code to bucket
+        run: |
+          ls -la
+          aws s3 cp .  s3://${{ env.BUCKET_NAME }}/code/ --recursive \
+            --exclude '.git/*' \
+            --exclude 'venv/*'  \
+            --exclude 'local/*' \
+            --exclude 'driver/*' \
+            --exclude '.tox/*' \
+            --exclude '.idea/*
+
+          
+
+#      - name: Upload source code to bucket
+#        run: |
+#          ls -la
+#          aws s3 cp project/ source_code.zip s3://${{ env.BUCKET_NAME }}/project --recursive --acl public-read
+#          aws s3 cp project/ s3://${{ env.BUCKET_NAME }}/project/ --recursive
+#          aws s3 cp project/ source_code.zip s3://${{ env.BUCKET_NAME }}/project
