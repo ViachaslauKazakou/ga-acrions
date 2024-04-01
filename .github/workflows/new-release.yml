@@ -1,0 +1,69 @@
+name: Create releases branches
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BUCKET_NAME: solid-scraper
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Zip bundle
+        run: |
+          zip -r ../${{ github.sha }}.zip .
+      - name: Archive artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: zipped-bundle
+          path: ${{ github.sha }}.zip
+
+
+  publish:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    needs: build
+    env:
+      BUCKET_NAME: fastapi-code-bucket-0904
+    steps:
+      - name: Retrieve previous release number
+        id: get-previous-release
+        run: echo "::set-output name=previous_release::$(cat .previous_release || echo 0)"
+      - name: Calculate new release number
+        id: calculate-new-release
+        run: echo "::set-output name=new_release::$((${{ steps.get-previous-release.outputs.previous_release }} + 1))"
+      - name: Create release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        with:
+          tag_name: ${{ steps.calculate-new-release.outputs.new_release }}-release
+          release_name: Release ${{ steps.calculate-new-release.outputs.new_release }}
+          body: New release for ${{ github.sha }}. Release notes can be found in the docs.
+          draft: false
+          prerelease: false
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: zipped-bundle
+          path: ./zipped-bundle # Correct path to the downloaded artifact
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ./zipped-bundle/${{ github.sha }}.zip # Use correct path to the downloaded artifact
+          asset_name: source_code.zip
+          asset_content_type: application/zip
+      - name: Cache new release number
+        if: success()
+        run: echo "${{ steps.calculate-new-release.outputs.new_release }}" > .previous_release
+
