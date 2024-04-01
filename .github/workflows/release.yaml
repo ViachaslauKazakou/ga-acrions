@@ -10,8 +10,6 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    env:
-      BUCKET_NAME: solid-scraper
     steps:
       - name: Check out code
         uses: actions/checkout@v2
@@ -19,18 +17,16 @@ jobs:
         run: |
           zip -r ../${{ github.sha }}.zip .
       - name: Archive artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: zipped-bundle
           path: ${{ github.sha }}.zip
 
 
-  publish:
+  release:
     runs-on: ubuntu-latest
     permissions: write-all
     needs: build
-    env:
-      BUCKET_NAME: fastapi-code-bucket-0904
     steps:
       - name: Create release
         id: create-release
