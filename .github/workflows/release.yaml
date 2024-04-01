@@ -3,7 +3,7 @@ name: Create releases branches
 on:
   push:
     branches:
-      # - main
+      - main
       - release/*
 
 jobs:
@@ -43,11 +43,11 @@ jobs:
           body: New release for ${{ github.sha }}. Release notes can be found in the docs.
           draft: false
           prerelease: false
-      # - name: Download artifact
-      #   uses: actions/download-artifact@v2
-      #   with:
-      #     name: zipped-bundle
-      #     path: ${{ github.sha }}.zip
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zipped-bundle
+          path: ${{ github.sha }}.zip
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
         env:
